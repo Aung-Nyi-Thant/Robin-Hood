@@ -1,0 +1,52 @@
+{
+  "name": "nottingham-live",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n web,game -c green,yellow \"vinext dev\" \"tsx watch server/index.ts\"",
+    "dev:web": "vinext dev",
+    "dev:server": "tsx watch server/index.ts",
+    "build": "vinext build",
+    "start": "concurrently -k -n web,game -c green,yellow \"vinext start\" \"tsx server/index.ts\"",
+    "start:web": "vinext start",
+    "start:server": "tsx server/index.ts",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "test": "node --import tsx --test server/*.test.ts",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=85 server/*.test.ts",
+    "check:deploy": "npm run lint && tsc --noEmit && npm run test:coverage && npm run build"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "next": "16.2.6",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.37.1",
+    "@cloudflare/workers-types": "4.20260515.1",
+    "@openai/sites-vite-plugin": "^0.1.0 || ^0.2.0",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "concurrently": "^10.0.5",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "react-server-dom-webpack": "19.2.6",
+    "tailwindcss": "4.2.1",
+    "tsx": "^4.23.12",
+    "typescript": "5.9.3",
+    "vinext": "1.0.0-beta.3",
+    "vite": "8.0.13",
+    "wrangler": "4.92.0"
+  },
+  "type": "module"
+}
