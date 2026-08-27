@@ -8,9 +8,8 @@ import {
   type Room,
 } from './gameEngine.js';
 
- const PORT = Number(
-    process.env.PORT ?? process.env.GAME_PORT ?? 4000
-  );
+const PORT = Number(process.env.PORT ?? process.env.GAME_PORT ?? 4000);
+const HOST = process.env.HOST ?? '0.0.0.0';
 
 export function createGameServer() {
 const app = express();
@@ -100,5 +99,5 @@ return { app, server, io, rooms, memberships };
 const isMainModule = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMainModule) {
   const { server } = createGameServer();
-  server.listen(PORT, () => console.log(`Game server listening on http://localhost:${PORT}`));
+  server.listen(PORT, HOST, () => console.log(`Game server listening on http://${HOST}:${PORT}`));
 }
