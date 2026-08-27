@@ -30,7 +30,7 @@ test('localizes every server event shape used by the game lifecycle', () => {
   const events = [
     'Draw opening cards from the Royal Deck', 'Opening hands ready · merchants may trade', 'The Sheriff is ready · merchants may trade', 'Merchants are packing their bags',
     'The market is closed — final scores are in', 'The market is ready for another game', 'Ada opened the market', 'Bea joined the market', 'Ada drew a card · 3/6',
-    'Bea finished trading', 'Bea traded 1 card', 'Bea traded 4 cards', 'Bea drew one card', 'Bea kept their hand', 'Bea handed over a sealed bag', 'Bea faces the Sheriff',
+    "Bea's turn to trade or draw", 'Bea finished trading', 'Bea traded 1 card', 'Bea traded 4 cards', 'Bea drew one card', 'Bea kept their hand', 'Bea handed over a sealed bag', 'Bea faces the Sheriff',
     'Ada adjusted the offer', 'Bea must refill the Sheriff’s hand · 5/6', 'Bea is the new Sheriff', "Ada passed Bea's bag", "Ada passed Bea's bag for 5 gold",
     'Bea was honest — the Sheriff paid 4 gold', 'Bea was caught — 6 gold penalty',
   ];

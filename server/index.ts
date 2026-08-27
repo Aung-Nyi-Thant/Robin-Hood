@@ -69,7 +69,7 @@ io.on('connection', (socket) => {
 
   socket.on('game:start', () => withRoom(startGame));
   socket.on('draw:complete', (payload: { cardIds: string[]; source: DrawSource; discardPile: DiscardPile }) => withRoom((room, id) => completeDraw(room, id, payload.cardIds, payload.source, payload.discardPile)));
-  socket.on('deal:card', () => withRoom(drawDealCard));
+  socket.on('deal:card', (payload?: { source?: DrawSource }) => withRoom((room, id) => drawDealCard(room, id, payload?.source ?? 'DECK')));
   socket.on('draw:trade', (payload: { cardIds: string[]; discardPile: DiscardPile }) => withRoom((room, id) => tradeCards(room, id, payload.cardIds, payload.discardPile)));
   socket.on('draw:card', (payload: { source: DrawSource }) => withRoom((room, id) => drawCard(room, id, payload.source)));
   socket.on('draw:skip', () => withRoom(skipDraw));

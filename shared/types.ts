@@ -69,6 +69,7 @@ export interface ClientGameState extends GameState {
   drawCompletedPlayerIds: string[];
   drawPreparedPlayerIds: string[];
   dealPlayerIds: string[];
+  activeDrawPlayerId: string | null;
   submittedPlayerIds: string[];
   bagCounts: Record<string, number>;
   declarations: Record<string, ItemType>;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addPlayer, createDeck, createRoom, drawDealCard, resetGame, startGame } from './gameEngine.js';
 import { openingRoom } from './testHelpers.js';
+import { green } from './testHelpers.js';
 
 test('deck has the configured 64 unique cards with correct goods values', () => {
   const deck = createDeck();
@@ -64,6 +65,16 @@ test('deal phase rejects invalid, completed, and overfilled draw attempts', () =
   assert.throws(() => drawDealCard(room, 'p2'), /not the deal phase/);
 });
 
+test('opening and Sheriff refill draws can use a visible discard pile', () => {
+  const room = openingRoom();
+  room.state.leftDiscard.push(green('visible-left'));
+  drawDealCard(room, 'p1', 'LEFT');
+  assert.equal(room.state.players[0].hand[0].id, 'visible-left');
+  room.state.rightDiscard.push(green('visible-right', 'Cheese'));
+  drawDealCard(room, 'p2', 'RIGHT');
+  assert.equal(room.state.players[1].hand[0].id, 'visible-right');
+});
+
 test('reset is host-only and restores every mutable game collection', () => {
   const room = openingRoom();
   room.state.leftDiscard.push(room.state.deck.pop()!);
@@ -76,7 +87,7 @@ test('reset is host-only and restores every mutable game collection', () => {
   assert.equal(room.state.currentRound, 0);
   assert.equal(room.state.deck.length + room.state.leftDiscard.length + room.state.rightDiscard.length, 0);
   assert.ok(room.state.players.every((player, index) => player.gold === 50 && !player.hand.length && !player.marketStand.length && !player.vault.length && player.isSheriff === (index === 0)));
-  assert.equal(room.drawCompleted.size + room.drawPrepared.size + room.dealPlayers.size + room.bags.size + room.declarations.size, 0);
+  assert.equal(room.drawCompleted.size + room.drawPrepared.size + room.dealPlayers.size + room.drawQueue.length + room.bags.size + room.declarations.size, 0);
   assert.equal(room.inspectionResolution, null);
   assert.equal(room.nextResolutionId, 0);
 });

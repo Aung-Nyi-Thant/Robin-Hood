@@ -9,6 +9,7 @@ export interface Room {
   drawCompleted: Set<string>;
   drawPrepared: Set<string>;
   dealPlayers: Set<string>;
+  drawQueue: string[];
   bags: Map<string, Card[]>;
   declarations: Map<string, ItemType>;
   inspectionResolution: InspectionResolution | null;
@@ -82,7 +83,7 @@ export function createRoom(roomCode: string, hostId: string, hostName: string, a
       players: [{ id: hostId, name: hostName, avatar, gold: 50, hand: [], marketStand: [], vault: [], isSheriff: true }],
       deck: [], leftDiscard: [], rightDiscard: [], inspectionQueue: [], currentBribe: null,
     },
-    drawCompleted: new Set(), drawPrepared: new Set(), dealPlayers: new Set(), bags: new Map(), declarations: new Map(), inspectionResolution: null, nextResolutionId: 0, lastEvent: `${hostName} opened the market`,
+    drawCompleted: new Set(), drawPrepared: new Set(), dealPlayers: new Set(), drawQueue: [], bags: new Map(), declarations: new Map(), inspectionResolution: null, nextResolutionId: 0, lastEvent: `${hostName} opened the market`,
   };
 }
 
@@ -108,31 +109,48 @@ export function startGame(room: Room, playerId: string): void {
   room.state.players.forEach((player, index) => {
     player.gold = 50; player.hand = []; player.marketStand = []; player.vault = []; player.isSheriff = index === 0;
   });
-  room.drawCompleted.clear(); room.drawPrepared.clear(); room.dealPlayers = new Set(room.state.players.map((player) => player.id)); room.bags.clear(); room.declarations.clear();
+  room.drawCompleted.clear(); room.drawPrepared.clear(); room.dealPlayers = new Set(room.state.players.map((player) => player.id)); room.drawQueue = []; room.bags.clear(); room.declarations.clear();
   room.inspectionResolution = null; room.nextResolutionId = 0;
   room.lastEvent = 'Draw opening cards from the Royal Deck';
 }
 
-export function drawDealCard(room: Room, playerId: string): void {
+export function drawDealCard(room: Room, playerId: string, source: DrawSource = 'DECK'): void {
   assert(room.state.phase === 'DEAL', 'It is not the deal phase');
   assert(room.dealPlayers.has(playerId), 'You are not drawing in this deal');
   const player = room.state.players.find((candidate) => candidate.id === playerId)!;
   assert(player.hand.length < 6, 'Your hand is already full');
-  const card = drawOne(room, 'DECK');
+  const card = drawOne(room, source) ?? drawOne(room, 'DECK');
   assert(card, 'No cards are available to draw');
   player.hand.push(card);
   room.lastEvent = `${player.name} drew a card · ${player.hand.length}/6`;
   if (player.hand.length === 6) room.dealPlayers.delete(playerId);
   if (!room.dealPlayers.size) {
-    room.state.phase = 'DRAW';
-    room.lastEvent = room.state.currentRound === 1 ? 'Opening hands ready · merchants may trade' : 'The Sheriff is ready · merchants may trade';
+    beginMerchantDraw(room);
   }
+}
+
+function clockwiseMerchants(room: Room): Player[] {
+  const players = room.state.players;
+  return Array.from({ length: players.length - 1 }, (_, offset) => players[(room.state.sheriffIndex + offset + 1) % players.length]).filter((player) => !player.isSheriff);
+}
+
+function beginMerchantDraw(room: Room): void {
+  room.state.phase = 'DRAW';
+  room.drawQueue = clockwiseMerchants(room).map((merchant) => merchant.id);
+  const active = room.state.players.find((player) => player.id === room.drawQueue[0]);
+  room.lastEvent = active ? `${active.name}'s turn to trade or draw` : 'Merchants are packing their bags';
+}
+
+function assertDrawTurn(room: Room, playerId: string): void {
+  assert(room.drawQueue[0] === playerId, 'Wait for your clockwise draw turn');
 }
 
 function finishMerchantDraw(room: Room, player: Player): void {
   room.drawCompleted.add(player.id);
-  room.lastEvent = `${player.name} finished trading`;
-  if (activeMerchants(room).every((merchant) => room.drawCompleted.has(merchant.id))) {
+  if (room.drawQueue[0] === player.id) room.drawQueue.shift();
+  const next = room.state.players.find((candidate) => candidate.id === room.drawQueue[0]);
+  room.lastEvent = next ? `${next.name}'s turn to trade or draw` : `${player.name} finished trading`;
+  if (!room.drawQueue.length) {
     room.state.phase = 'BAG_SUBMIT';
     room.lastEvent = 'Merchants are packing their bags';
   }
@@ -142,6 +160,7 @@ export function tradeCards(room: Room, playerId: string, cardIds: string[], disc
   assert(room.state.phase === 'DRAW', 'It is not the draw phase');
   const player = room.state.players.find((p) => p.id === playerId);
   assert(player && !player.isSheriff, 'Only active merchants draw cards');
+  assertDrawTurn(room, playerId);
   assert(!room.drawCompleted.has(playerId), 'You already completed your draw');
   assert(!room.drawPrepared.has(playerId), 'You already traded cards this round');
   const unique = [...new Set(cardIds)];
@@ -159,6 +178,7 @@ export function drawCard(room: Room, playerId: string, source: DrawSource): void
   assert(room.state.phase === 'DRAW', 'It is not the draw phase');
   const player = room.state.players.find((p) => p.id === playerId);
   assert(player && !player.isSheriff, 'Only active merchants draw cards');
+  assertDrawTurn(room, playerId);
   assert(room.drawPrepared.has(playerId), 'Trade cards before drawing, or skip with a full hand');
   assert(!room.drawCompleted.has(playerId), 'You already completed your draw');
   assert(player.hand.length < 6, 'Your hand is already full');
@@ -173,6 +193,7 @@ export function skipDraw(room: Room, playerId: string): void {
   assert(room.state.phase === 'DRAW', 'It is not the draw phase');
   const player = room.state.players.find((p) => p.id === playerId);
   assert(player && !player.isSheriff, 'Only active merchants can skip');
+  assertDrawTurn(room, playerId);
   assert(!room.drawCompleted.has(playerId), 'You already completed your draw');
   assert(!room.drawPrepared.has(playerId), 'Finish drawing back to 6 cards');
   assert(player.hand.length === 6, 'You can skip only with 6 cards');
@@ -244,15 +265,14 @@ function finishInspection(room: Room): void {
   room.state.sheriffIndex = (room.state.sheriffIndex + 1) % room.state.players.length;
   room.state.players.forEach((player, index) => { player.isSheriff = index === room.state.sheriffIndex; });
   const nextSheriff = room.state.players[room.state.sheriffIndex];
-  room.state.currentBribe = null; room.drawCompleted.clear(); room.drawPrepared.clear(); room.bags.clear(); room.declarations.clear();
+  room.state.currentBribe = null; room.drawCompleted.clear(); room.drawPrepared.clear(); room.drawQueue = []; room.bags.clear(); room.declarations.clear();
   room.dealPlayers.clear();
   if (nextSheriff.hand.length < 6) {
     room.state.phase = 'DEAL';
     room.dealPlayers.add(nextSheriff.id);
     room.lastEvent = `${nextSheriff.name} must refill the Sheriff’s hand · ${nextSheriff.hand.length}/6`;
   } else {
-    room.state.phase = 'DRAW';
-    room.lastEvent = `${nextSheriff.name} is the new Sheriff`;
+    beginMerchantDraw(room);
   }
 }
 
@@ -308,7 +328,7 @@ export function resetGame(room: Room, playerId: string): void {
   room.state.phase = 'LOBBY'; room.state.currentRound = 0; room.state.sheriffIndex = 0;
   room.state.deck = []; room.state.leftDiscard = []; room.state.rightDiscard = []; room.state.inspectionQueue = []; room.state.currentBribe = null;
   room.state.players.forEach((player, index) => { player.gold = 50; player.hand = []; player.marketStand = []; player.vault = []; player.isSheriff = index === 0; });
-  room.drawCompleted.clear(); room.drawPrepared.clear(); room.dealPlayers.clear(); room.bags.clear(); room.declarations.clear(); room.inspectionResolution = null; room.nextResolutionId = 0; room.lastEvent = 'The market is ready for another game';
+  room.drawCompleted.clear(); room.drawPrepared.clear(); room.dealPlayers.clear(); room.drawQueue = []; room.bags.clear(); room.declarations.clear(); room.inspectionResolution = null; room.nextResolutionId = 0; room.lastEvent = 'The market is ready for another game';
 }
 
 export function clientState(room: Room, viewerId: string): ClientGameState {
@@ -332,6 +352,7 @@ export function clientState(room: Room, viewerId: string): ClientGameState {
     drawCompletedPlayerIds: [...room.drawCompleted],
     drawPreparedPlayerIds: [...room.drawPrepared],
     dealPlayerIds: [...room.dealPlayers],
+    activeDrawPlayerId: room.drawQueue[0] ?? null,
     submittedPlayerIds: [...room.bags.keys()],
     bagCounts: Object.fromEntries([...room.bags].map(([id, cards]) => [id, cards.length])),
     declarations: Object.fromEntries(room.declarations),

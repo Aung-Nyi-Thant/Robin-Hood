@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { completeDraw, drawCard, skipDraw, tradeCards } from './gameEngine.js';
+import { clientState, completeDraw, drawCard, skipDraw, tradeCards } from './gameEngine.js';
 import { green, startedRoom } from './testHelpers.js';
 
 test('trade validates phase, merchant role, completion, selection size, and ownership', () => {
@@ -27,6 +27,35 @@ test('duplicate card ids trade only one card and the chosen pile receives it', (
   assert.throws(() => tradeCards(room, merchant.id, [merchant.hand[0].id], 'LEFT'), /already traded/);
 });
 
+test('merchant turns advance clockwise from the player left of the Sheriff', () => {
+  const room = startedRoom();
+  assert.equal(room.drawQueue[0], 'p2');
+  assert.equal(room.state.sheriffIndex, 0);
+  assert.throws(() => skipDraw(room, 'p3'), /clockwise draw turn/);
+  skipDraw(room, 'p2');
+  assert.equal(room.drawQueue[0], 'p3');
+  assert.equal(clientState(room, 'p1').activeDrawPlayerId, 'p3');
+  skipDraw(room, 'p3');
+  assert.equal(room.drawQueue.length, 0);
+  assert.equal(room.state.phase, 'BAG_SUBMIT');
+});
+
+test('a merchant can draw the visible top card directly from either discard pile', () => {
+  const room = startedRoom();
+  const merchant = room.state.players[1];
+  const leftCard = merchant.hand[0];
+  tradeCards(room, merchant.id, [leftCard.id], 'LEFT');
+  drawCard(room, merchant.id, 'LEFT');
+  assert.equal(merchant.hand.at(-1)?.id, leftCard.id);
+  skipDraw(room, 'p3');
+
+  room.state.phase = 'DRAW'; room.drawCompleted.clear(); room.drawPrepared.clear(); room.drawQueue = ['p2', 'p3'];
+  const rightCard = merchant.hand[0];
+  tradeCards(room, merchant.id, [rightCard.id], 'RIGHT');
+  drawCard(room, merchant.id, 'RIGHT');
+  assert.equal(merchant.hand.at(-1)?.id, rightCard.id);
+});
+
 test('players draw one by one and empty discard sources fall back to the deck', () => {
   const room = startedRoom();
   const merchant = room.state.players[1];
@@ -37,7 +66,7 @@ test('players draw one by one and empty discard sources fall back to the deck', 
   drawCard(room, merchant.id, 'LEFT');
   assert.equal(merchant.hand.at(-1)?.id, deckTop);
   assert.ok(room.drawCompleted.has(merchant.id));
-  assert.throws(() => drawCard(room, merchant.id, 'DECK'), /already completed/);
+  assert.throws(() => drawCard(room, merchant.id, 'DECK'), /clockwise draw turn/);
 });
 
 test('main deck recycles both discard piles when exhausted', () => {
@@ -75,7 +104,7 @@ test('skip requires an untouched full merchant hand and advances after all merch
   assert.throws(() => skipDraw(room, 'p2'), /only with 6 cards/);
   room.state.players[1].hand.push(room.state.deck.pop()!);
   skipDraw(room, 'p2');
-  assert.throws(() => skipDraw(room, 'p2'), /already completed/);
+  assert.throws(() => skipDraw(room, 'p2'), /clockwise draw turn/);
   skipDraw(room, 'p3');
   assert.equal(room.state.phase, 'BAG_SUBMIT');
 });
